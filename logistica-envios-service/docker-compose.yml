@@ -1,0 +1,53 @@
+version: '3.8'
+
+networks:
+  red-microservicios:
+    driver: bridge
+
+services:
+  envio-api:
+    build: .
+    container_name: api_envio_java
+    ports:
+      - "8083:8080"
+    networks:
+      - red-microservicios
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://envio-db:3306/envio_db?allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root_pass
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      - URL_MOCK=http://mock-server:8082
+    depends_on:
+      envio-db:
+        condition: service_healthy
+      mock-server:
+        condition: service_started
+
+  envio-db:
+    image: mysql:8.0
+    container_name: db_envio
+    networks:
+      - red-microservicios
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass
+      MYSQL_DATABASE: envio_db
+    ports:
+      - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mock-server:
+    image: node:18-alpine
+    container_name: mock_envio_api
+    working_dir: /data
+    ports:
+      - "8082:8082"
+    networks:
+      - red-microservicios
+    volumes:
+      - "./mock-data:/data"
+    command: npx json-server --watch db.json --port 8082 --host 0.0.0.0

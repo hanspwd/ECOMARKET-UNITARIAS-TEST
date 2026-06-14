@@ -1,0 +1,42 @@
+{"properties": [
+  {
+    "name": "microservicio.usuarios.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.pedidos.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.soporte.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.inventario.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.pagos.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.carrito.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.envios.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.productos.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  }
+]}

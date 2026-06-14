@@ -1,0 +1,61 @@
+version: '3.8'
+
+networks:
+  red-microservicios:
+    driver: bridge
+
+services:
+  # Microservicio API Soporte
+  soporte-api:
+    build: .
+    container_name: api_soporte_java
+    ports:
+      - "8081:8080"
+    networks:
+      - red-microservicios
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:mysql://soporte-db:3306/soporte_db?allowPublicKeyRetrieval=true&useSSL=false
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=root_pass
+      - SPRING_JPA_HIBERNATE_DDL_AUTO=update
+      # ---> NUEVO: Variable de entorno para indicarle a Spring la URL del Mock en Docker
+      # (Cambia "URL_USUARIOS" por el nombre exacto de la variable que uses en tu application.properties)
+      - URL_USUARIOS=http://mock-server:8082
+    depends_on:
+      soporte-db:
+        condition: service_healthy
+      mock-server:
+        condition: service_started # Espera a que el mock se levante
+
+  # Base de Datos MySQL para Soporte
+  soporte-db:
+    image: mysql:8.0
+    container_name: db_soporte
+    networks:
+      - red-microservicios
+    environment:
+      MYSQL_ROOT_PASSWORD: root_pass
+      MYSQL_DATABASE: soporte_db
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ---> NUEVO: Servidor Mock para simular la API de Usuarios/Clientes
+  mock-server:
+    image: node:18-alpine
+    container_name: mock_usuarios_api
+    working_dir: /data
+    ports:
+      - "8082:8082" # Lo exponemos también al host por si quieres revisarlo en tu navegador (http://localhost:8082)
+    networks:
+      - red-microservicios
+    volumes:
+      # Mapea tu carpeta local al contenedor. 
+      # Crea una carpeta llamada "mock-data" junto a este archivo docker-compose y mete ahí tu db.json
+      - "./mock-data:/data"
+    # Ejecutamos json-server con npx. El flag --host 0.0.0.0 es CRÍTICO para que acepte llamadas externas dentro de Docker
+    command: npx json-server --watch db.json --port 8082 --host 0.0.0.0

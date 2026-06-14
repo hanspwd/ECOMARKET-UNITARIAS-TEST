@@ -1,0 +1,11 @@
+target/
+*.jar
+*.war
+*.log
+.idea/
+.vscode/
+*.iml
+.settings/
+.project
+.classpath
+/bin/

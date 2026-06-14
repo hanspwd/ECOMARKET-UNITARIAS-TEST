@@ -1,0 +1,47 @@
+{
+  "clientes": [
+    { "id": 1, "nombre": "Juan Perez", "email": "juan@example.com", "telefono": "123456789" },
+    { "id": 2, "nombre": "Maria Gomez", "email": "maria@example.com", "telefono": "987654321" },
+    { "id": 3, "nombre": "Carlos Lopez", "email": "carlos@example.com", "telefono": "555555555" }
+  ],
+  "pedidos": [
+    { "id": 1, "clienteId": 1, "total": 15000.50, "fechaPedido": "2026-05-01T10:00:00", "estado": "Entregado" },
+    { "id": 2, "clienteId": 2, "total": 25000.00, "fechaPedido": "2026-05-05T14:30:00", "estado": "Pendiente" },
+    { "id": 3, "clienteId": 1, "total": 8000.75, "fechaPedido": "2026-05-10T09:15:00", "estado": "Enviado" },
+    { "id": 4, "clienteId": 3, "total": 32000.00, "fechaPedido": "2026-05-15T16:45:00", "estado": "Entregado" }
+  ],
+  "productos": [
+    { "id": 1, "nombre": "Laptop HP", "precio": 450000.00, "categoria": "Electronica" },
+    { "id": 2, "nombre": "Mouse Inalambrico", "precio": 15000.00, "categoria": "Electronica" },
+    { "id": 3, "nombre": "Teclado Mecanico", "precio": 35000.00, "categoria": "Electronica" },
+    { "id": 4, "nombre": "Monitor 24 pulgadas", "precio": 180000.00, "categoria": "Electronica" }
+  ],
+  "inventario": [
+    { "id": 1, "productoId": 1, "cantidadDisponible": 15, "sucursal": "Casa Matriz" },
+    { "id": 2, "productoId": 2, "cantidadDisponible": 50, "sucursal": "Casa Matriz" },
+    { "id": 3, "productoId": 3, "cantidadDisponible": 30, "sucursal": "Sucursal Norte" },
+    { "id": 4, "productoId": 4, "cantidadDisponible": 10, "sucursal": "Sucursal Sur" }
+  ],
+  "pagos": [
+    { "id": 1, "pedidoId": 1, "monto": 15000.50, "metodoPago": "Tarjeta Credito", "estado": "Aprobado", "fechaPago": "2026-05-01T10:05:00" },
+    { "id": 2, "pedidoId": 2, "monto": 25000.00, "metodoPago": "Transferencia", "estado": "Pendiente", "fechaPago": "2026-05-05T14:35:00" },
+    { "id": 3, "pedidoId": 3, "monto": 8000.75, "metodoPago": "Tarjeta Debito", "estado": "Aprobado", "fechaPago": "2026-05-10T09:20:00" },
+    { "id": 4, "pedidoId": 4, "monto": 32000.00, "metodoPago": "Efectivo", "estado": "Rechazado", "fechaPago": "2026-05-15T16:50:00" }
+  ],
+  "carrito": [
+    { "id": 1, "clienteId": 1, "productoId": 2, "cantidad": 2, "precioUnitario": 15000.00 },
+    { "id": 2, "clienteId": 1, "productoId": 3, "cantidad": 1, "precioUnitario": 35000.00 },
+    { "id": 3, "clienteId": 2, "productoId": 1, "cantidad": 1, "precioUnitario": 450000.00 },
+    { "id": 4, "clienteId": 3, "productoId": 4, "cantidad": 2, "precioUnitario": 180000.00 }
+  ],
+  "soporte": [
+    { "id": 1, "clienteId": 1, "asunto": "Producto defectuoso", "categoria": "Reclamo", "estado": "Abierto", "fechaCreacion": "2026-05-02T11:00:00" },
+    { "id": 2, "clienteId": 2, "asunto": "Consulta sobre envio", "categoria": "Consulta", "estado": "Resuelto", "fechaCreacion": "2026-05-06T09:30:00" },
+    { "id": 3, "clienteId": 3, "asunto": "Cambio de producto", "categoria": "Solicitud", "estado": "En Proceso", "fechaCreacion": "2026-05-12T15:00:00" }
+  ],
+  "envios": [
+    { "id": 1, "pedidoId": 1, "transportistaId": 1, "estado": "Entregado", "metodoEnvio": "Domicilio", "fechaCreacion": "2026-05-01T11:00:00" },
+    { "id": 2, "pedidoId": 2, "transportistaId": 2, "estado": "Pendiente", "metodoEnvio": "Domicilio", "fechaCreacion": "2026-05-05T15:00:00" },
+    { "id": 3, "pedidoId": 3, "transportistaId": 1, "estado": "En Transito", "metodoEnvio": "Punto Retiro", "fechaCreacion": "2026-05-10T10:00:00" }
+  ]
+}

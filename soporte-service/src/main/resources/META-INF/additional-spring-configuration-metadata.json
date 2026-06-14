@@ -1,0 +1,17 @@
+{"properties": [
+  {
+    "name": "microservicio.usuarios.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+  {
+    "name": "microservicio.analitica.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  },
+    {
+    "name": "microservicio.pedidos.url",
+    "type": "java.lang.String",
+    "description": "desc pendiente"
+  }
+]}
