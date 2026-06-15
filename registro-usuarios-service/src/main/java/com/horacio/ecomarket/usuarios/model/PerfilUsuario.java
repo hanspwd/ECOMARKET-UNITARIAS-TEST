@@ -1,5 +1,6 @@
 package com.horacio.ecomarket.usuarios.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -56,5 +57,6 @@ public class PerfilUsuario {
         inverseJoinColumns = @JoinColumn(name = "permiso_id")
     )
     @Builder.Default
+    @JsonIgnore
     private List<Permiso> permisos = new ArrayList<>();
 }
