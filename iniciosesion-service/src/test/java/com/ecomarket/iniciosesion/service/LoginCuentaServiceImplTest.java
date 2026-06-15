@@ -35,21 +35,14 @@ import static org.mockito.Mockito.*;
  *
  * Ejecutar solo este servicio:
  * mvn test -pl iniciosesion-service -Dtest=LoginCuentaServiceImplTest
- *
- * FIX: se declaró el campo estático `encoder` que los tests de
- * CambiarContrasena
- * necesitaban para verificar el hash resultante (bug original: variable no
- * declarada).
  */
 @ExtendWith(MockitoExtension.class)
 class LoginCuentaServiceImplTest {
 
     // ── BCryptPasswordEncoder de referencia para verificar hashes en asserts ──
-    // No es un mock; se usa solo en los argThat() donde necesitamos matches().
     private static final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
 
     // ── Mocks ─────────────────────────────────────────────────────────────────
-
     @Mock
     private CredencialRepository credencialRepository;
     @Mock
@@ -64,13 +57,6 @@ class LoginCuentaServiceImplTest {
     @InjectMocks
     private LoginCuentaServiceImpl service;
 
-    // FIX: LoginCuentaServiceImpl crea su propio BCryptPasswordEncoder internamente
-    // (campo `private final BCryptPasswordEncoder passwordEncoder = new
-    // BCryptPasswordEncoder()`).
-    // @InjectMocks NO puede inyectar ese campo porque no es un bean declarado como
-    // @Mock.
-    // Por eso reconstruimos el service manualmente en @BeforeEach para asegurarnos
-    // de que todos los colaboradores correctos están inyectados.
     @BeforeEach
     void setup() {
         service = new LoginCuentaServiceImpl(
@@ -87,7 +73,6 @@ class LoginCuentaServiceImplTest {
                 .id(usuarioId)
                 .usuarioId(usuarioId)
                 .correoAcceso(correo)
-                // Hasheamos aquí para que passwordEncoder.matches() funcione dentro del service
                 .contrasenaHash(encoder.encode(contrasenaPlana))
                 .cuentaBloqueada(false)
                 .rolAcceso("ROLE_USER")
@@ -97,7 +82,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // crearCredencial
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("crearCredencial")
     class CrearCredencial {
@@ -173,7 +157,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // iniciarSesion
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("iniciarSesion")
     class IniciarSesion {
@@ -196,6 +179,26 @@ class LoginCuentaServiceImplTest {
 
             assertThat(res.getToken()).isEqualTo("jwt-token-abc");
             assertThat(res.getUsuarioId()).isEqualTo(10L);
+            assertThat(res.getRol()).isEqualTo("ROLE_USER");
+        }
+
+        @Test
+        @DisplayName("asigna ROLE_USER por defecto si el rol en la BD es null (cubre línea 81)")
+        void iniciarSesionRolNullAsignaPorDefecto() {
+            Credencial cred = credencialActiva(20L, "sinrol@eco.cl", "pass123");
+            cred.setRolAcceso(null);
+
+            when(credencialRepository.findByCorreoAcceso("sinrol@eco.cl")).thenReturn(Optional.of(cred));
+            when(credencialRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+            when(jwtUtil.generarToken(any(), any(), any())).thenReturn("token-generado");
+            when(jwtUtil.getExpirationMs()).thenReturn(3600000L);
+
+            IniciarSesionRequest req = new IniciarSesionRequest();
+            req.setCorreo("sinrol@eco.cl");
+            req.setContrasena("pass123");
+
+            IniciarSesionResponse res = service.iniciarSesion(req);
+
             assertThat(res.getRol()).isEqualTo("ROLE_USER");
         }
 
@@ -260,10 +263,9 @@ class LoginCuentaServiceImplTest {
         }
     }
 
-    // ═════════════════════════════════════════════════════════════════════════
+    // ── ═══════════════════════════════════════════════════════════════════════
     // cerrarSesion
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("cerrarSesion")
     class CerrarSesion {
@@ -281,7 +283,11 @@ class LoginCuentaServiceImplTest {
             String token = "valid-jwt";
             when(jwtUtil.esTokenValido(token)).thenReturn(true);
             when(sesionJWTRepository.existsByToken(token)).thenReturn(false);
-            when(jwtUtil.validarYObtenerClaims(token)).thenReturn(mockClaims());
+
+            // AQUÍ ESTABA EL PROBLEMA: Cambia la línea original por estas dos de abajo 👇
+            Claims claimsFalsos = mockClaims();
+            when(jwtUtil.validarYObtenerClaims(token)).thenReturn(claimsFalsos);
+
             when(jwtUtil.obtenerUsuarioId(token)).thenReturn(1L);
             when(jwtUtil.obtenerRoles(token)).thenReturn(List.of("ROLE_USER"));
             when(sesionJWTRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -293,6 +299,59 @@ class LoginCuentaServiceImplTest {
 
             assertThat(res.getMensaje()).contains("exitosamente");
             verify(sesionJWTRepository).save(any(SesionJWT.class));
+        }
+
+        @Test
+        @DisplayName("cierra la sesión exitosamente y guarda en la blacklist (cubre líneas 112-127)")
+        void cerrarSesionExitosoGuardaEnBD() {
+            String token = "token-valido";
+            when(jwtUtil.esTokenValido(token)).thenReturn(true);
+            when(sesionJWTRepository.existsByToken(token)).thenReturn(false);
+
+            Claims claims = mock(Claims.class);
+            when(claims.getIssuedAt()).thenReturn(new Date());
+            when(claims.getExpiration()).thenReturn(new Date(System.currentTimeMillis() + 3600000L));
+
+            when(jwtUtil.validarYObtenerClaims(token)).thenReturn(claims);
+            when(jwtUtil.obtenerUsuarioId(token)).thenReturn(1L);
+            when(jwtUtil.obtenerRoles(token)).thenReturn(List.of("ROLE_ADMIN"));
+            when(sesionJWTRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            CerrarSesionRequest req = new CerrarSesionRequest();
+            req.setToken(token);
+
+            MensajeResponse res = service.cerrarSesion(req);
+
+            assertThat(res.getMensaje()).contains("exitosa");
+            verify(sesionJWTRepository).save(any());
+        }
+
+        @Test
+        @DisplayName("cierra la sesión asignando ROLE_USER si la lista de roles existe pero está vacía (cubre la otra mitad de la línea 114)")
+        void cerrarSesionListaRolesVaciaAsignaPorDefecto() {
+            String token = "token-roles-vacios";
+            when(jwtUtil.esTokenValido(token)).thenReturn(true);
+            when(sesionJWTRepository.existsByToken(token)).thenReturn(false);
+
+            Claims claims = mock(Claims.class);
+            when(claims.getIssuedAt()).thenReturn(new Date());
+            when(claims.getExpiration()).thenReturn(new Date(System.currentTimeMillis() + 3600000L));
+
+            when(jwtUtil.validarYObtenerClaims(token)).thenReturn(claims);
+            when(jwtUtil.obtenerUsuarioId(token)).thenReturn(1L);
+
+            // ¡AQUÍ ESTÁ LA MAGIA! Pasamos una lista vacía en lugar de null
+            when(jwtUtil.obtenerRoles(token)).thenReturn(List.of());
+
+            when(sesionJWTRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            CerrarSesionRequest req = new CerrarSesionRequest();
+            req.setToken(token);
+
+            service.cerrarSesion(req);
+
+            // Verificamos que se haya guardado con ROLE_USER por defecto
+            verify(sesionJWTRepository).save(argThat(s -> "ROLE_USER".equals(s.getRolAcceso())));
         }
 
         @Test
@@ -327,7 +386,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // autenticarJWT
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("autenticarJWT")
     class AutenticarJWT {
@@ -379,7 +437,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // cambiarContrasena
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("cambiarContrasena")
     class CambiarContrasena {
@@ -387,22 +444,35 @@ class LoginCuentaServiceImplTest {
         @Test
         @DisplayName("actualiza el hash en BD al cambiar contraseña con credenciales correctas")
         void usuarioInexistenteLanzaExcepcion() {
-            // 1. Arrange: Preparamos un request con un ID que "no existe" en BD
             CambiarContrasenaRequest req = new CambiarContrasenaRequest();
             req.setUsuarioId(99L);
             req.setContrasenaActual("vieja123");
             req.setNuevaContrasena("nueva456");
 
-            // Hacemos que el mock devuelva vacío (esto obligará a ejecutar el orElseThrow)
             when(credencialRepository.findByUsuarioId(99L)).thenReturn(Optional.empty());
 
-            // 2. Act & 3. Assert: Verificamos que explote exactamente en esa línea roja
             assertThatThrownBy(() -> service.cambiarContrasena(req))
                     .isInstanceOf(CredencialNotFoundException.class)
                     .hasMessageContaining("No se encontraron credenciales para el usuario 99");
 
-            // (Opcional) Verificamos que no se intentó guardar nada por error
             verify(credencialRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("cambia la contraseña exitosamente con datos correctos")
+        void cambiaContrasenaExitosamente() {
+            Credencial cred = credencialActiva(7L, "u@eco.cl", "vieja123");
+            when(credencialRepository.findByUsuarioId(7L)).thenReturn(Optional.of(cred));
+            when(credencialRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            CambiarContrasenaRequest req = new CambiarContrasenaRequest();
+            req.setUsuarioId(7L);
+            req.setContrasenaActual("vieja123");
+            req.setNuevaContrasena("nueva456");
+
+            MensajeResponse res = service.cambiarContrasena(req);
+
+            assertThat(res.getMensaje()).contains("Contraseña actualizada");
         }
 
         @Test
@@ -426,7 +496,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // inhabilitarCredenciales
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("inhabilitarCredenciales")
     class InhabilitarCredenciales {
@@ -463,7 +532,6 @@ class LoginCuentaServiceImplTest {
     // ═════════════════════════════════════════════════════════════════════════
     // recuperarCredenciales / restablecerConToken
     // ═════════════════════════════════════════════════════════════════════════
-
     @Nested
     @DisplayName("recuperarCredenciales y restablecerConToken")
     class Recuperacion {
@@ -538,6 +606,88 @@ class LoginCuentaServiceImplTest {
 
             assertThatThrownBy(() -> service.restablecerConToken(req))
                     .isInstanceOf(TokenInvalidoException.class);
+        }
+    }
+
+    // ═════════════════════════════════════════════════════════════════════════
+    // cambiarCorreo
+    // ═════════════════════════════════════════════════════════════════════════
+    @Nested
+    @DisplayName("cambiarCorreo")
+    class CambiarCorreo {
+
+        @Test
+        @DisplayName("cambia el correo exitosamente si la contraseña es correcta y el nuevo correo está disponible")
+        void cambiaCorreoExitosamente() {
+            Credencial cred = credencialActiva(1L, "antiguo@eco.cl", "pass123");
+
+            when(credencialRepository.findByUsuarioId(1L)).thenReturn(Optional.of(cred));
+            when(credencialRepository.existsByCorreoAcceso("nuevo@eco.cl")).thenReturn(false);
+            when(credencialRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+            CambiarCorreoRequest req = new CambiarCorreoRequest();
+            req.setUsuarioId(1L);
+            req.setContrasenaActual("pass123");
+            req.setNuevoCorreo("nuevo@eco.cl");
+
+            MensajeResponse res = service.cambiarCorreo(req);
+
+            assertThat(res.getMensaje()).contains("Correo actualizado exitosamente");
+            assertThat(cred.getCorreoAcceso()).isEqualTo("nuevo@eco.cl");
+            verify(credencialRepository, times(1)).save(cred);
+        }
+
+        @Test
+        @DisplayName("lanza CredencialNotFoundException si el usuario no existe en la BD")
+        void usuarioInexistenteLanzaExcepcion() {
+            when(credencialRepository.findByUsuarioId(99L)).thenReturn(Optional.empty());
+
+            CambiarCorreoRequest req = new CambiarCorreoRequest();
+            req.setUsuarioId(99L);
+
+            assertThatThrownBy(() -> service.cambiarCorreo(req))
+                    .isInstanceOf(CredencialNotFoundException.class)
+                    .hasMessageContaining("No se encontraron credenciales para el usuario 99");
+
+            verify(credencialRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("lanza AutenticacionException si la contraseña de validación actual es incorrecta")
+        void contrasenaIncorrectaLanzaExcepcion() {
+            Credencial cred = credencialActiva(1L, "antiguo@eco.cl", "clave_correcta");
+            when(credencialRepository.findByUsuarioId(1L)).thenReturn(Optional.of(cred));
+
+            CambiarCorreoRequest req = new CambiarCorreoRequest();
+            req.setUsuarioId(1L);
+            req.setContrasenaActual("clave_erronea");
+            req.setNuevoCorreo("nuevo@eco.cl");
+
+            assertThatThrownBy(() -> service.cambiarCorreo(req))
+                    .isInstanceOf(AutenticacionException.class)
+                    .hasMessage("Contraseña incorrecta.");
+
+            verify(credencialRepository, never()).existsByCorreoAcceso(any());
+            verify(credencialRepository, never()).save(any());
+        }
+
+        @Test
+        @DisplayName("lanza CorreoDuplicadoException si el nuevo correo ya le pertenece a otro usuario")
+        void correoDuplicadoLanzaExcepcion() {
+            Credencial cred = credencialActiva(1L, "antiguo@eco.cl", "pass123");
+            when(credencialRepository.findByUsuarioId(1L)).thenReturn(Optional.of(cred));
+            when(credencialRepository.existsByCorreoAcceso("duplicado@eco.cl")).thenReturn(true);
+
+            CambiarCorreoRequest req = new CambiarCorreoRequest();
+            req.setUsuarioId(1L);
+            req.setContrasenaActual("pass123");
+            req.setNuevoCorreo("duplicado@eco.cl");
+
+            assertThatThrownBy(() -> service.cambiarCorreo(req))
+                    .isInstanceOf(CorreoDuplicadoException.class)
+                    .hasMessageContaining("ya está en uso");
+
+            verify(credencialRepository, never()).save(any());
         }
     }
 }
